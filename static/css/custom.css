@@ -1,0 +1,63 @@
+/* Custom styles for Fulfillment Hub */
+
+/* Warehouse Floor Mode: High contrast, large targets */
+.warehouse-mode {
+    --primary-action: #2563eb;
+}
+
+.shelf-tag {
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.15em;
+    font-weight: 800;
+}
+
+/* Simulated Barcode */
+.barcode-stripes {
+    background: repeating-linear-gradient(
+        90deg,
+        #000,
+        #000 2px,
+        #fff 2px,
+        #fff 5px,
+        #000 5px,
+        #000 9px,
+        #fff 9px,
+        #fff 11px
+    );
+    height: 48px;
+    width: 100%;
+    border-radius: 2px;
+}
+
+/* Shipping Label Print Styles */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #shipping-label-modal-content, #shipping-label-modal-content * {
+        visibility: visible;
+    }
+    #shipping-label-modal-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+/* Subtle smooth transitions */
+.transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Pulsing SLA warning for orders close to cutoff */
+@keyframes urgent-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+.urgent-badge {
+    animation: urgent-pulse 2s infinite ease-in-out;
+}

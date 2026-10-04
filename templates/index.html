@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XYZ Fulfillment Hub - Warehouse & Dispatch Control</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e3a8a',
+                        secondary: '#0f766e',
+                        accent: '#f59e0b',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/custom.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand & Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-xl shadow-inner tracking-wider">
+                        XYZ
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h1 class="font-bold text-lg leading-tight tracking-tight">Fulfillment Hub</h1>
+                            <span class="text-xs bg-blue-500/30 text-blue-300 font-medium px-2 py-0.5 rounded border border-blue-400/30">v1.2 Operations</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Main Warehouse (WH-01) &bull; Overflow Hub (WH-02)</p>
+                    </div>
+                </div>
+
+                <!-- Live Status & Courier Cutoff Ticker -->
+                <div class="hidden md:flex items-center space-x-4 bg-slate-800/80 px-4 py-1.5 rounded-lg border border-slate-700">
+                    <div class="flex items-center space-x-2 text-xs text-amber-300 font-medium">
+                        <i data-lucide="clock" class="w-4 h-4 text-amber-400 animate-pulse"></i>
+                        <span>Next Cutoff: <strong id="next-cutoff-text">DHL Express (14:00)</strong></span>
+                    </div>
+                    <div class="h-4 w-px bg-slate-700"></div>
+                    <div class="text-xs text-slate-300 flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span id="live-time-clock">--:--:--</span>
+                    </div>
+                </div>
+
+                <!-- Role Tabs & Quick Actions -->
+                <div class="flex items-center space-x-3">
+                    <button onclick="resetDemoData()" title="Reset database to 250 realistic demo orders" class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-md border border-slate-700 flex items-center space-x-1.5 transition-all">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Reset 250 Orders</span>
+                    </button>
+                    <div class="flex items-center space-x-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
+                        <button onclick="switchTab('office')" id="nav-btn-office" class="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 bg-blue-600 text-white shadow-sm transition-all">
+                            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
+                            <span>Office Hub</span>
+                        </button>
+                        <button onclick="switchTab('warehouse')" id="nav-btn-warehouse" class="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 text-slate-300 hover:text-white transition-all">
+                            <i data-lucide="scan-line" class="w-3.5 h-3.5"></i>
+                            <span class="flex items-center">
+                                Warehouse Floor
+                                <span id="queue-badge" class="ml-1 px-1.5 py-0.2 text-[10px] bg-amber-500 text-slate-950 font-bold rounded-full">0</span>
+                            </span>
+                        </button>
+                        <button onclick="switchTab('inventory')" id="nav-btn-inventory" class="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 text-slate-300 hover:text-white transition-all">
+                            <i data-lucide="boxes" class="w-3.5 h-3.5"></i>
+                            <span>Inventory & Wh 2</span>
+                        </button>
+                        <button onclick="switchTab('staging')" id="nav-btn-staging" class="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 text-slate-300 hover:text-white transition-all">
+                            <i data-lucide="truck" class="w-3.5 h-3.5"></i>
+                            <span>Staging & Dispatch</span>
+                        </button>
+                        <button onclick="switchTab('exceptions')" id="nav-btn-exceptions" class="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 text-slate-300 hover:text-white transition-all">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-400"></i>
+                            <span class="flex items-center">
+                                Exceptions
+                                <span id="exception-badge" class="ml-1 px-1.5 py-0.2 text-[10px] bg-rose-500 text-white font-bold rounded-full">0</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Operational KPI Metric Ribbon -->
+    <section class="bg-white border-b border-slate-200 shadow-sm py-3 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+            <div class="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Today's Orders</span>
+                <span id="kpi-total-orders" class="text-2xl font-black text-slate-900">250</span>
+            </div>
+            <div class="bg-amber-50 border border-amber-200/70 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider block">Needs Label (Office)</span>
+                <span id="kpi-pending-label" class="text-2xl font-black text-amber-800">0</span>
+            </div>
+            <div class="bg-blue-50 border border-blue-200/70 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-blue-700 uppercase tracking-wider block">Ready to Pick</span>
+                <span id="kpi-ready-pick" class="text-2xl font-black text-blue-800">0</span>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-200/70 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider block">In Pick / Pack</span>
+                <span id="kpi-in-progress" class="text-2xl font-black text-indigo-800">0</span>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200/70 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">Staged for Pickup</span>
+                <span id="kpi-staged" class="text-2xl font-black text-emerald-800">0</span>
+            </div>
+            <div class="bg-teal-50 border border-teal-200/70 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-teal-700 uppercase tracking-wider block">Dispatched</span>
+                <span id="kpi-dispatched" class="text-2xl font-black text-teal-800">0</span>
+            </div>
+            <div class="bg-rose-50 border border-rose-200/80 rounded-lg p-2.5">
+                <span class="text-[11px] font-semibold text-rose-700 uppercase tracking-wider block">Exceptions / Issues</span>
+                <span id="kpi-exceptions" class="text-2xl font-black text-rose-800">0</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 1: OFFICE COMMAND CENTER -->
+        <!-- ========================================================================================= -->
+        <div id="tab-office" class="space-y-6">
+            
+            <!-- Context Header Banner -->
+            <div class="bg-gradient-to-r from-blue-900 to-slate-900 rounded-xl p-5 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <span>Office Fulfillment Hub &amp; Dispatch Coordinator</span>
+                        <span class="text-xs bg-blue-500/40 text-blue-200 font-normal px-2.5 py-0.5 rounded-full border border-blue-300/30">1-2 Operators</span>
+                    </h2>
+                    <p class="text-xs text-blue-200 mt-1 max-w-2xl">
+                        Review incoming marketplace orders, compare courier options (rates, cutoff times, delivery SLAs), 
+                        print shipping labels with 1 click, and auto-route priority same-day orders to the warehouse floor.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="filterPriorityOrders()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all">
+                        <i data-lucide="zap" class="w-4 h-4 fill-slate-950"></i>
+                        <span>Show Urgent / Same-Day Only</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pipeline Kanban Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div onclick="filterByStatus('PENDING_LABEL')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Pending Label</span>
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-pending">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">Needs courier selection</div>
+                </div>
+
+                <div onclick="filterByStatus('READY_TO_PICK')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Ready to Pick</span>
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-ready">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">In warehouse pick list</div>
+                </div>
+
+                <div onclick="filterByStatus('PICKING')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Picking</span>
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-picking">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">Items being collected</div>
+                </div>
+
+                <div onclick="filterByStatus('PACKING')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-purple-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Packing</span>
+                        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-packing">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">Verified &amp; boxing</div>
+                </div>
+
+                <div onclick="filterByStatus('STAGED')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Staged in Bays</span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-staged">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">Awaiting courier truck</div>
+                </div>
+
+                <div onclick="filterByStatus('DISPATCHED')" class="cursor-pointer bg-white p-3 rounded-xl border border-slate-200 hover:border-teal-400 hover:shadow-md transition-all text-left">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                        <span>Dispatched</span>
+                        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                    </div>
+                    <div class="text-xl font-bold text-slate-900" id="card-count-dispatched">0</div>
+                    <div class="text-[10px] text-slate-400 mt-1">Collected by courier</div>
+                </div>
+            </div>
+
+            <!-- Filters, Search & Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+                    <!-- Search input -->
+                    <div class="relative flex-1 max-w-md">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input type="text" id="order-search" oninput="debounceSearch()" placeholder="Search order #, customer, city, tracking..." class="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    </div>
+
+                    <!-- Filter dropdowns -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="filter-status" onchange="loadOrders()" class="text-xs py-1.5 px-3 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="ALL">All Statuses</option>
+                            <option value="PENDING_LABEL">Pending Label</option>
+                            <option value="READY_TO_PICK">Ready to Pick</option>
+                            <option value="PICKING">In Picking</option>
+                            <option value="PACKING">In Packing</option>
+                            <option value="STAGED">Staged</option>
+                            <option value="DISPATCHED">Dispatched</option>
+                            <option value="EXCEPTION">Exception</option>
+                        </select>
+
+                        <select id="filter-channel" onchange="loadOrders()" class="text-xs py-1.5 px-3 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="ALL">All Channels</option>
+                            <option value="Shopify Webstore">Shopify Webstore</option>
+                            <option value="Amazon Prime">Amazon Prime</option>
+                            <option value="eBay Store">eBay Store</option>
+                            <option value="Direct Corporate">Direct Corporate</option>
+                        </select>
+
+                        <button onclick="resetFilters()" class="text-xs text-slate-500 hover:text-slate-800 py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-100/75 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                            <tr>
+                                <th class="py-3 px-4">Order &amp; Priority</th>
+                                <th class="py-3 px-4">Channel</th>
+                                <th class="py-3 px-4">Customer &amp; City</th>
+                                <th class="py-3 px-4">Items / Qty</th>
+                                <th class="py-3 px-4">Courier / Cutoff</th>
+                                <th class="py-3 px-4">SLA Deadline</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body" class="divide-y divide-slate-200">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 2: WAREHOUSE FLOOR MODE (TECHNOLOGY-FRIENDLY & HIGH-CONTRAST) -->
+        <!-- ========================================================================================= -->
+        <div id="tab-warehouse" class="hidden space-y-6">
+            
+            <!-- Large Worker Profile & Banner -->
+            <div class="bg-slate-900 rounded-xl p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4 border-amber-500">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-full bg-amber-500 text-slate-950 font-black text-xl flex items-center justify-center shadow-lg">
+                        <i data-lucide="scan" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h2 class="text-xl font-bold tracking-tight">Warehouse Floor Terminal</h2>
+                            <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-400/30 font-medium">Simple Touch Mode</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Logged in as: <strong class="text-white">Dave Miller (Picker #1)</strong> &bull; Location: Main Warehouse Floor</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <div class="bg-slate-800 px-3.5 py-2 rounded-lg border border-slate-700 text-xs">
+                        <span class="text-slate-400">Queue Rule:</span>
+                        <span class="font-bold text-amber-400 ml-1">Priority 1st &bull; Closest Cutoff</span>
+                    </div>
+                    <button onclick="refreshWarehouseQueue()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-sm">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>Refresh Queue</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Pick Wizard OR Queue Cards -->
+            <div id="warehouse-active-task-container">
+                <!-- If picking an order: Active Pick Wizard displays here -->
+                <!-- Else: Prioritized Pick Queue cards display here -->
+            </div>
+        </div>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 3: INVENTORY & WAREHOUSE 2 TRANSFERS -->
+        <!-- ========================================================================================= -->
+        <div id="tab-inventory" class="hidden space-y-6">
+            
+            <!-- Header with Multi-Warehouse Info -->
+            <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="boxes" class="w-5 h-5 text-indigo-600"></i>
+                        <span>Two-Tier Inventory &amp; Stock Transfer Hub</span>
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        Track live stock across <strong>Main Warehouse (WH-01)</strong> and the <strong>Secondary Overflow Warehouse (WH-02)</strong>.
+                        Orders only ship from Main Warehouse. Request stock transfers before inventory runs out.
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="filterLowStockProducts()" class="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-semibold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all">
+                        <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                        <span>Show Low Stock Alerts</span>
+                    </button>
+                    <button onclick="openTransferModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all">
+                        <i data-lucide="arrow-right-left" class="w-4 h-4"></i>
+                        <span>Request Transfer from Wh 2</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stock Transfers In-Progress Tracker -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i>
+                        <span>Active Stock Transfers (Warehouse 2 &rarr; Main Warehouse)</span>
+                    </h3>
+                    <span id="transfers-count" class="text-xs text-slate-500 font-medium">3 transfers</span>
+                </div>
+                <div id="transfers-container" class="divide-y divide-slate-100">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- Products Catalog & Shelf Map -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                    <div class="relative w-72">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input type="text" id="inventory-search" oninput="loadInventory()" placeholder="Search product, SKU, barcode..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    </div>
+                    <span class="text-xs text-slate-500">Sorted by lowest Main Warehouse stock first</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                            <tr>
+                                <th class="py-3 px-4">Product &amp; Variant</th>
+                                <th class="py-3 px-4">SKU / Barcode</th>
+                                <th class="py-3 px-4">Main Warehouse Location</th>
+                                <th class="py-3 px-4 text-center">Main Stock</th>
+                                <th class="py-3 px-4 text-center">Wh 2 Overflow Stock</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Quick Restock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="divide-y divide-slate-200">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 4: STAGING BAYS & COURIER DISPATCH -->
+        <!-- ========================================================================================= -->
+        <div id="tab-staging" class="hidden space-y-6">
+            
+            <!-- Dispatch Overview Banner -->
+            <div class="bg-slate-900 rounded-xl p-5 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="truck" class="w-6 h-6 text-emerald-400"></i>
+                        <span>Staging Bays &amp; Courier Handover Manifest</span>
+                    </h2>
+                    <p class="text-xs text-slate-300 mt-1 max-w-2xl">
+                        Packed boxes are organized into dedicated staging bays per courier to eliminate misplaced boxes. 
+                        When the courier driver arrives, review package manifests, print handover sheets, and confirm dispatch with 1 click.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 text-xs bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                    <span>All staged boxes tagged with courier barcodes</span>
+                </div>
+            </div>
+
+            <!-- Staging Bays Grid -->
+            <div id="staging-bays-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Populated via JS: Bay A (DHL), Bay B (FedEx), Bay C (UPS), Bay D (SpeedyShip) -->
+            </div>
+        </div>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 5: EXCEPTION RESOLUTION QUEUE -->
+        <!-- ========================================================================================= -->
+        <div id="tab-exceptions" class="hidden space-y-6">
+            
+            <!-- Exception Banner -->
+            <div class="bg-rose-900 text-white rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="alert-octagon" class="w-6 h-6 text-rose-300"></i>
+                        <span>Operational Exceptions &amp; Issue Resolution Queue</span>
+                    </h2>
+                    <p class="text-xs text-rose-200 mt-1 max-w-2xl">
+                        No more lost sticky notes or forgotten informal issues. Every missing item, damaged box, or variant discrepancy 
+                        is logged with an audit trail, picker name, and clear resolution actions.
+                    </p>
+                </div>
+                <span id="open-exceptions-count-pill" class="text-xs bg-white text-rose-900 font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                    0 Active Issues
+                </span>
+            </div>
+
+            <!-- Exceptions List -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Exception Logs</h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadExceptions('ALL')" class="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1">All</button>
+                        <button onclick="loadExceptions('OPEN')" class="text-xs font-bold text-rose-600 hover:text-rose-800 px-2 py-1 bg-rose-50 rounded">Open Only</button>
+                        <button onclick="loadExceptions('RESOLVED')" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 px-2 py-1">Resolved</button>
+                    </div>
+                </div>
+
+                <div id="exceptions-container" class="divide-y divide-slate-100">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-8 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>XYZ E-Commerce Fulfillment Hub &bull; Built with Python &amp; FastAPI</span>
+            <span class="flex items-center space-x-2">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>System Operational &bull; Live Barcode Audio Engine Ready</span>
+            </span>
+        </div>
+    </footer>
+
+    <!-- ========================================================================================= -->
+    <!-- MODALS -->
+    <!-- ========================================================================================= -->
+
+    <!-- Order Detail & Courier Rate Selector Modal -->
+    <div id="order-detail-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                        #
+                    </div>
+                    <div>
+                        <h3 id="modal-order-number" class="text-base font-bold text-slate-900">XYZ-1001</h3>
+                        <p id="modal-order-customer" class="text-xs text-slate-500">Customer Name &bull; Channel</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('order-detail-modal')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="px-6 py-5 overflow-y-auto space-y-6 flex-1 text-xs">
+                
+                <!-- Order Status & Priority Ribbon -->
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-500 font-medium">Status:</span>
+                        <span id="modal-status-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                            PENDING_LABEL
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span id="modal-sla-badge" class="text-slate-600 font-medium">SLA: 4h 12m</span>
+                        <button id="modal-priority-toggle-btn" onclick="toggleCurrentOrderPriority()" class="text-xs font-bold px-3 py-1 rounded-md border flex items-center space-x-1">
+                            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                            <span>Toggle Priority</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer & Delivery Address -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-700 block mb-1 text-xs">Shipping Destination:</span>
+                        <p id="modal-shipping-address" class="text-slate-800 font-medium">123 Main St, New York, NY 10001</p>
+                        <p id="modal-shipping-email" class="text-slate-500 mt-1">customer@example.com</p>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-700 block mb-1 text-xs">Courier &amp; Staging:</span>
+                        <p id="modal-courier-info" class="text-slate-800 font-medium">Not Assigned</p>
+                        <p id="modal-tracking-info" class="text-slate-500 mt-1 font-mono">No tracking yet</p>
+                    </div>
+                </div>
+
+                <!-- Order Items & Shelf Locations -->
+                <div>
+                    <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Order Items to Pick</h4>
+                    <div id="modal-items-list" class="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Courier Rate Selection (If Pending Label) -->
+                <div id="modal-courier-selector-section" class="bg-blue-50/60 p-4 rounded-xl border border-blue-200">
+                    <h4 class="font-bold text-blue-900 text-xs uppercase tracking-wider mb-1">Select Courier &amp; Generate Label</h4>
+                    <p class="text-[11px] text-blue-700 mb-3">Compare courier speeds, cutoff deadlines, and costs to fulfill XYZ's delivery promise:</p>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="modal-couriers-grid">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Activity Trail -->
+                <div>
+                    <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Audit &amp; Action Log</h4>
+                    <div id="modal-activity-log" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+                <button onclick="openExceptionModalForCurrentOrder()" class="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center space-x-1">
+                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                    <span>Flag Issue / Exception</span>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <button id="modal-print-label-btn" onclick="printShippingLabelForCurrentOrder()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-1.5 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Print Shipping Label</span>
+                    </button>
+                    <button onclick="closeModal('order-detail-modal')" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2 rounded-lg text-xs transition-all">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Printable Shipping Label Modal -->
+    <div id="shipping-label-modal" class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="p-3 bg-slate-100 border-b flex justify-between items-center print:hidden">
+                <span class="text-xs font-bold text-slate-700">Official Thermal Shipping Label (4" x 6")</span>
+                <button onclick="closeModal('shipping-label-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            
+            <!-- Label Paper Content -->
+            <div id="shipping-label-modal-content" class="p-6 bg-white border-2 border-slate-800 m-4 rounded font-sans text-xs space-y-4">
+                <!-- Courier Header -->
+                <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3">
+                    <div>
+                        <div id="label-courier-name" class="text-xl font-black tracking-tight">DHL EXPRESS</div>
+                        <div id="label-service-type" class="text-[10px] font-bold text-slate-600">DOMESTIC PRIORITY NEXT-DAY</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-black">PRIORITY</div>
+                        <div id="label-date" class="text-[10px] text-slate-500">2026-10-04</div>
+                    </div>
+                </div>
+
+                <!-- Origin & Destination -->
+                <div class="grid grid-cols-2 gap-2 text-[10px] pb-2 border-b border-slate-400">
+                    <div>
+                        <span class="font-bold uppercase text-slate-500 block">Ship From:</span>
+                        <p class="font-semibold text-slate-900 leading-tight">XYZ E-Commerce Logistics<br>Dock 4, Industrial Pkwy<br>Warehouse WH-01</p>
+                    </div>
+                    <div>
+                        <span class="font-bold uppercase text-slate-500 block">Deliver To:</span>
+                        <p id="label-customer-name" class="font-bold text-slate-900 text-xs">Customer Name</p>
+                        <p id="label-customer-address" class="text-slate-800 leading-tight">123 Street Ave<br>City, ST 12345</p>
+                    </div>
+                </div>
+
+                <!-- Staging Bay & Tracking Number -->
+                <div class="bg-slate-100 p-2.5 rounded text-center border border-slate-300">
+                    <span class="text-[9px] uppercase font-bold text-slate-500 block">Staging Bay Assignment</span>
+                    <span id="label-staging-bay" class="text-lg font-black text-slate-900 tracking-wider">BAY A - DHL</span>
+                </div>
+
+                <!-- Simulated Barcode -->
+                <div class="text-center pt-2">
+                    <div class="barcode-stripes mb-1"></div>
+                    <p id="label-tracking-number" class="font-mono text-sm font-bold tracking-widest">DHL938472910</p>
+                    <p class="text-[9px] text-slate-400">XYZ Internal Routing Barcode &bull; Scan to Verify</p>
+                </div>
+            </div>
+
+            <!-- Print Actions -->
+            <div class="p-3 bg-slate-50 border-t flex justify-end space-x-2 print:hidden">
+                <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>Print Label</span>
+                </button>
+                <button onclick="closeModal('shipping-label-modal')" class="bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-semibold">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flag Exception Modal -->
+    <div id="flag-exception-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="p-4 bg-rose-50 border-b border-rose-200 flex justify-between items-center">
+                <div class="flex items-center space-x-2 text-rose-800 font-bold text-sm">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
+                    <span>Report Fulfillment Exception</span>
+                </div>
+                <button onclick="closeModal('flag-exception-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <form id="flag-exception-form" onsubmit="submitException(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="exception-order-id">
+                
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Issue Category:</label>
+                    <select id="exception-type" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500">
+                        <option value="MISSING_STOCK">Missing Stock (Shelf bin empty)</option>
+                        <option value="WRONG_VARIANT">Wrong Variant in Bin (Mismatched Color/Size)</option>
+                        <option value="DAMAGED_ITEM">Damaged Product / Broken Box</option>
+                        <option value="ADDRESS_ERROR">Incomplete Customer Shipping Address</option>
+                        <option value="OTHER">Other Operational Blocker</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Description / Notes:</label>
+                    <textarea id="exception-notes" required rows="3" placeholder="Describe exactly what happened so the office team can resolve it immediately..." class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Reported By:</label>
+                    <input type="text" id="exception-reporter" value="Dave Miller (Picker)" required class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('flag-exception-modal')" class="px-3 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg shadow-sm">Log Issue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Request Stock Transfer Modal -->
+    <div id="stock-transfer-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="p-4 bg-indigo-50 border-b border-indigo-200 flex justify-between items-center">
+                <div class="flex items-center space-x-2 text-indigo-900 font-bold text-sm">
+                    <i data-lucide="arrow-right-left" class="w-4 h-4 text-indigo-600"></i>
+                    <span>Transfer Stock: Wh 2 &rarr; Main Warehouse</span>
+                </div>
+                <button onclick="closeModal('stock-transfer-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <form id="stock-transfer-form" onsubmit="submitStockTransfer(event)" class="p-5 space-y-4 text-xs">
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Select Product to Restock:</label>
+                    <select id="transfer-sku-select" required class="w-full p-2 border border-slate-300 rounded-lg">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Transfer Quantity (Units):</label>
+                    <input type="number" id="transfer-quantity" min="1" max="100" value="25" required class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Transfer Reason / Urgency:</label>
+                    <input type="text" id="transfer-notes" placeholder="e.g. Critical stockout for today's orders" class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+
+                <div>
+                    <label class="font-bold text-slate-700 block mb-1">Requested By:</label>
+                    <input type="text" id="transfer-requester" value="Dave Miller (Warehouse Lead)" required class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('stock-transfer-modal')" class="px-3 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-sm">Dispatch Transfer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/audio.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
